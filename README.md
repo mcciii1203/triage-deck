@@ -64,6 +64,13 @@ date order, with undated "someday" items last:
 Dates are stored as plain local `YYYY-MM-DD` strings - no timezone surprises, and
 easy to paste into whatever actually runs your week.
 
+## Dark and light
+
+The app follows your system theme on first visit. The sun/moon button in the header
+switches it, and that choice is remembered and then wins over the system setting -
+until you clear it, the app stops following the OS. The theme is resolved in a small
+inline script before the body parses, so the page never flashes the wrong colours.
+
 ## Notes
 
 - Progress is saved to `localStorage` after every card, so closing the tab mid-deck
