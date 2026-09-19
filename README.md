@@ -16,11 +16,22 @@ Open `index.html` in any browser. No install, no build, no server, no network.
    | `Left arrow`  | Drop  | let it go |
    | `Down arrow`  | Defer | pick a date (see below) |
    | `Right arrow` | Do    | it's on the list |
+   | `E` | Edit | reword the card in place |
    | `Z` / `Backspace` | Undo | take the last one back |
 
    You can also drag a card and fling it in the same direction, or click the buttons.
 
 4. **Copy out** - three clean buckets, copyable individually or all at once as Markdown.
+
+## Fixing a badly worded card
+
+Press `E` (or double-click the card) to edit the top card where it sits. `Enter`
+saves, `Esc` reverts, and clicking away keeps what you typed. Emptying a card
+reverts it rather than leaving a blank item, and runs of whitespace are collapsed.
+
+Edits update the item itself, so they flow through to the defer sheet, the buckets
+and the Markdown export. While a card is being edited the deck shortcuts stand down,
+so an arrow key types a character instead of triaging half-written text.
 
 ## Deferring to a date
 

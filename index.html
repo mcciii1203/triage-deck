@@ -78,6 +78,17 @@
     overflow:hidden; word-break:break-word;
     transform-origin:50% 120%;
   }
+  .card .t{outline:none}
+  .card.editing{border-color:rgba(255,255,255,.34)}
+  .card.editing .t{
+    user-select:text; cursor:text; padding-bottom:5px;
+    border-bottom:1px dashed rgba(255,255,255,.28);
+  }
+  .card .edit-hint{
+    position:absolute; left:0; right:0; bottom:14px; text-align:center;
+    font-size:11px; color:var(--faint); opacity:0; transition:opacity .15s; pointer-events:none;
+  }
+  .card.editing .edit-hint{opacity:1}
   .card.settle{transition:transform .32s cubic-bezier(.2,.9,.3,1), opacity .32s}
   .card.fly{transition:transform .26s ease-in, opacity .26s ease-in; opacity:0}
   .card .n{position:absolute; top:14px; left:18px; font-size:12px; color:var(--faint); letter-spacing:.08em}
@@ -187,6 +198,7 @@
     <div class="meta">
       <span id="count">1 of 1</span>
       <span class="bar"><i id="fill"></i></span>
+      <button class="ghost" id="edit">Edit <kbd>E</kbd></button>
       <button class="ghost" id="undo" disabled>Undo <kbd>Z</kbd></button>
     </div>
     <div class="deck-area">
@@ -327,7 +339,8 @@ function render(){
     el.innerHTML = '<span class="n">' + (S.idx + depth + 1) + '</span>' +
       '<span class="stamp drop">DROP</span>' +
       '<span class="stamp defer">DEFER</span>' +
-      '<span class="stamp do">DO</span><span class="t"></span>';
+      '<span class="stamp do">DO</span><span class="t"></span>' +
+      '<span class="edit-hint">Enter saves · Esc cancels</span>';
     el.querySelector('.t').textContent = text;
     if (depth === 0) arm(el);
     stack.appendChild(el);
@@ -340,6 +353,7 @@ function updateMeta(){
   $('#count').textContent = (S.idx < total ? S.idx + 1 : total) + ' of ' + total;
   $('#fill').style.width = (total ? S.idx / total * 100 : 0) + '%';
   $('#undo').disabled = !S.history.length;
+  $('#edit').disabled = S.idx >= total;
 }
 
 /* ---------- choosing ---------- */
@@ -348,7 +362,7 @@ function topCard(){
   return live[live.length - 1];         // topmost card that isn't already flying off
 }
 function choose(bucket){
-  if (S.idx >= S.items.length || sheetOpen) return;
+  if (S.idx >= S.items.length || sheetOpen || editSession) return;
   if (bucket === 'defer'){ openSheet(); return; }   // needs a date first
   commit(bucket, null);
 }
@@ -382,6 +396,57 @@ function undo(){
   if ($('#s-done').classList.contains('on')) show('s-deck');
   render();
 }
+
+/* ---------- edit the card in place ---------- */
+/* While a card is being edited this holds { span, stop } so anything else that
+   needs the edit to end (a click elsewhere, a lost focus event) can close it. */
+let editSession = null;
+function startEdit(){
+  if (editSession || sheetOpen || S.idx >= S.items.length) return;
+  const card = topCard();
+  if (!card) return;
+  const span = card.querySelector('.t');
+  const original = S.items[S.idx];
+
+  card.classList.add('editing');
+  // plaintext-only keeps pasted formatting out; not every engine accepts it
+  try { span.contentEditable = 'plaintext-only'; } catch(err){ span.contentEditable = 'true'; }
+  if (span.contentEditable !== 'plaintext-only') span.contentEditable = 'true';
+  span.focus();
+  const range = document.createRange();
+  range.selectNodeContents(span);
+  range.collapse(false);                       // caret at the end
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  function stop(keep){
+    if (!editSession) return;                  // guards the blur our own reset fires
+    editSession = null;
+    span.contentEditable = 'false';
+    card.classList.remove('editing');
+    span.removeEventListener('keydown', onKey);
+    span.removeEventListener('blur', onBlur);
+    const text = span.textContent.replace(/\s+/g, ' ').trim();
+    const next = (keep && text) ? text : original;
+    span.textContent = next;
+    if (next !== original){ S.items[S.idx] = next; save(); }
+  }
+  function onKey(e){
+    e.stopPropagation();                       // keep the deck shortcuts out of the way
+    if (e.key === 'Enter'){ e.preventDefault(); stop(true); }
+    else if (e.key === 'Escape'){ e.preventDefault(); stop(false); }
+  }
+  function onBlur(){ stop(true); }             // clicking away keeps what you typed
+  editSession = { span, stop };
+  span.addEventListener('keydown', onKey);
+  span.addEventListener('blur', onBlur);
+}
+// A pointerdown anywhere else ends the edit. This runs on the bubble phase, so the
+// card's own handler has already declined to start a drag: the click just commits.
+document.addEventListener('pointerdown', e => {
+  if (editSession && !editSession.span.contains(e.target)) editSession.stop(true);
+});
 
 /* ---------- defer sheet ---------- */
 let sheetOpen = false;
@@ -425,7 +490,9 @@ function arm(card){
   const aimedAt = (dx, dy) =>
     Math.abs(dx) > Math.abs(dy) * 1.2 ? (dx > 0 ? 'do' : 'drop') : (dy > 0 ? 'defer' : null);
 
+  card.addEventListener('dblclick', startEdit);
   card.addEventListener('pointerdown', e => {
+    if (editSession) return;                   // caret placement, not a fling
     dragging = true; id = e.pointerId; sx = e.clientX; sy = e.clientY;
     card.setPointerCapture(id);
     card.classList.remove('settle');
@@ -523,6 +590,7 @@ $('#start').onclick = () => {
 $('#sample').onclick = () => { $('#dump').value = SAMPLE; $('#dump').focus(); };
 $('#again').onclick = () => { wipe(); $('#dump').value = ''; show('s-input'); $('#dump').focus(); };
 $('#undo').onclick = undo;
+$('#edit').onclick = startEdit;
 $('#sheet-cancel').onclick = closeSheet;
 $('#sheet-none').onclick = () => confirmDefer(null);
 $('#sheet-date').onchange = e => { if (e.target.value) confirmDefer(e.target.value); };
@@ -537,6 +605,12 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (!$('#s-deck').classList.contains('on')) return;
+  if (editSession){
+    // Normally the span's own handler owns the keys. But if focus left without a blur
+    // event ever arriving, close the edit here rather than wedging the deck.
+    if (document.activeElement === editSession.span) return;
+    editSession.stop(true);
+  }
   if (sheetOpen){
     if (e.target.id === 'sheet-date'){          // let the date field keep its own keys
       if (e.key === 'Enter' && e.target.value) confirmDefer(e.target.value);
@@ -554,6 +628,7 @@ document.addEventListener('keydown', e => {
   }
   const map = { ArrowLeft:'drop', ArrowDown:'defer', ArrowRight:'do' };
   if (map[e.key]){ e.preventDefault(); choose(map[e.key]); }
+  else if (e.key === 'e' || e.key === 'E'){ e.preventDefault(); startEdit(); }
   else if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace'){ e.preventDefault(); undo(); }
 });
 
