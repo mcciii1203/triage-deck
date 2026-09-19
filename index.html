@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Triage Deck</title>
+<style>
+  :root{
+    --bg:#0e1014; --surface:#171a21; --line:rgba(255,255,255,.09);
+    --card-a:#242935; --card-b:#1b1f28;
+    --text:#e9e7e4; --muted:#8a8f9b; --faint:#5d626d;
+    --do:#4ade80; --defer:#fbbf24; --drop:#f87171;
+    --shadow:0 18px 40px -12px rgba(0,0,0,.65);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:16px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex; justify-content:center;
+    padding:32px 16px 48px;
+  }
+  #app{width:100%; max-width:720px; display:flex; flex-direction:column; gap:28px}
+
+  header{display:flex; align-items:baseline; gap:12px}
+  h1{font-size:19px; margin:0; letter-spacing:-.01em; font-weight:650}
+  header .dot{width:7px; height:7px; border-radius:50%; background:var(--do); box-shadow:0 0 12px var(--do)}
+  header p{margin:0 0 0 auto; color:var(--faint); font-size:13px}
+
+  .screen{display:none; flex-direction:column; gap:20px}
+  .screen.on{display:flex}
+
+  /* ---------- input ---------- */
+  textarea{
+    width:100%; min-height:260px; resize:vertical; padding:20px;
+    background:var(--surface); color:var(--text); border:1px solid var(--line);
+    border-radius:14px; font:15px/1.75 ui-monospace,"Cascadia Code",Consolas,monospace;
+    outline:none;
+  }
+  textarea:focus{border-color:rgba(255,255,255,.22)}
+  textarea::placeholder{color:var(--faint)}
+  .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .row .spacer{margin-left:auto}
+
+  button{
+    font:inherit; font-size:14px; font-weight:550; color:var(--text);
+    background:var(--surface); border:1px solid var(--line);
+    padding:10px 16px; border-radius:10px; cursor:pointer;
+    transition:background .15s, border-color .15s, transform .08s;
+  }
+  button:hover{background:#1f232c; border-color:rgba(255,255,255,.18)}
+  button:active{transform:translateY(1px)}
+  button.primary{background:var(--text); color:#12141a; border-color:transparent}
+  button.primary:hover{background:#fff}
+  button:disabled{opacity:.4; cursor:not-allowed}
+  .ghost{background:none; border-color:transparent; color:var(--muted); padding:10px 10px}
+  .ghost:hover{background:var(--surface); color:var(--text)}
+  kbd{
+    font:12px/1 ui-monospace,Consolas,monospace; color:var(--muted);
+    border:1px solid var(--line); border-bottom-width:2px; border-radius:5px;
+    padding:3px 6px; background:#000;
+  }
+
+  /* ---------- deck ---------- */
+  .meta{display:flex; align-items:center; gap:14px; color:var(--muted); font-size:13px}
+  .bar{flex:1; height:3px; background:var(--surface); border-radius:2px; overflow:hidden}
+  .bar i{display:block; height:100%; width:0; background:var(--text); transition:width .28s ease}
+
+  .deck-area{position:relative; height:300px}
+  #stack{position:absolute; inset:0; touch-action:none; user-select:none}
+  .card{
+    position:absolute; inset:0; border-radius:18px; padding:36px 40px;
+    background:linear-gradient(160deg,var(--card-a),var(--card-b));
+    border:1px solid var(--line); box-shadow:var(--shadow);
+    display:grid; place-items:center; text-align:center;
+    font-size:clamp(19px,3vw,26px); line-height:1.4; letter-spacing:-.01em;
+    overflow:hidden; word-break:break-word;
+    transform-origin:50% 120%;
+  }
+  .card.settle{transition:transform .32s cubic-bezier(.2,.9,.3,1), opacity .32s}
+  .card.fly{transition:transform .26s ease-in, opacity .26s ease-in; opacity:0}
+  .card .n{position:absolute; top:14px; left:18px; font-size:12px; color:var(--faint); letter-spacing:.08em}
+  .stamp{
+    position:absolute; top:18px; right:18px; font-size:13px; font-weight:700;
+    letter-spacing:.16em; padding:6px 12px; border-radius:8px; border:2px solid currentColor;
+    opacity:0; transition:opacity .1s;
+  }
+  .stamp.do{color:var(--do)} .stamp.defer{color:var(--defer)} .stamp.drop{color:var(--drop)}
+  .stamp.defer{right:auto; left:50%; top:auto; bottom:18px; transform:translateX(-50%)}
+  .stamp.drop{right:auto; left:18px}
+
+  .actions{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+  .act{display:flex; flex-direction:column; align-items:center; gap:5px; padding:14px 8px; line-height:1.2}
+  .act span{font-size:12px; color:var(--faint)}
+  .act[data-b="do"]:hover{border-color:var(--do); color:var(--do)}
+  .act[data-b="defer"]:hover{border-color:var(--defer); color:var(--defer)}
+  .act[data-b="drop"]:hover{border-color:var(--drop); color:var(--drop)}
+
+  /* ---------- defer sheet ---------- */
+  #sheet{
+    position:absolute; inset:0; z-index:30; border-radius:18px; overflow:auto;
+    background:rgba(14,16,20,.86); backdrop-filter:blur(7px);
+    border:1px solid rgba(251,191,36,.28);
+    display:flex; flex-direction:column; justify-content:center; gap:14px;
+    padding:24px 26px; animation:rise .16s ease-out;
+  }
+  #sheet[hidden]{display:none}
+  @keyframes rise{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+  #sheet .q{margin:0; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--defer)}
+  #sheet .what{
+    display:block; margin-top:7px; font-size:15px; color:var(--muted);
+    text-transform:none; letter-spacing:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .opts{display:grid; grid-template-columns:repeat(2,1fr); gap:8px}
+  .opt{display:flex; align-items:center; gap:10px; text-align:left; padding:11px 13px}
+  .opt:hover{border-color:var(--defer); color:var(--defer)}
+  .opt b{font-weight:600; font-size:14px; white-space:nowrap}
+  .opt em{font-style:normal; color:var(--faint); font-size:12px; margin-left:auto; white-space:nowrap}
+  .k{
+    font:11px/1 ui-monospace,Consolas,monospace; color:var(--faint);
+    border:1px solid var(--line); border-radius:4px; padding:3px 5px;
+  }
+  #sheet input[type=date]{
+    font:inherit; font-size:13px; color:var(--text); background:var(--surface);
+    border:1px solid var(--line); border-radius:9px; padding:9px 11px; color-scheme:dark;
+  }
+  #sheet input[type=date]:focus{outline:none; border-color:var(--defer)}
+  /* narrow: drop the date previews and tighten up so the sheet still fits the card area */
+  @media(max-width:560px){
+    .opt em{display:none}
+    #sheet{padding:18px 18px; gap:11px}
+    .opt{padding:10px 11px; gap:8px}
+    #sheet .what{margin-top:5px; font-size:14px}
+  }
+  .chip{
+    display:inline-block; margin-left:8px; font-size:11px; padding:2px 8px;
+    border-radius:999px; background:rgba(251,191,36,.13); color:var(--defer); white-space:nowrap;
+  }
+  .chip.someday{background:rgba(255,255,255,.06); color:var(--faint)}
+
+  /* ---------- results ---------- */
+  .buckets{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
+  @media(max-width:620px){ .buckets,.actions{grid-template-columns:1fr} }
+  .bucket{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:10px}
+  .bucket h2{margin:0; font-size:13px; letter-spacing:.1em; text-transform:uppercase; display:flex; align-items:center; gap:8px}
+  .bucket h2 em{margin-left:auto; font-style:normal; color:var(--faint); font-size:12px}
+  .bucket.do h2{color:var(--do)} .bucket.defer h2{color:var(--defer)} .bucket.drop h2{color:var(--drop)}
+  .bucket ul{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; font-size:14px; color:#cfcdc9}
+  .bucket li{padding-left:14px; position:relative; line-height:1.45}
+  .bucket li::before{content:""; position:absolute; left:0; top:.58em; width:5px; height:5px; border-radius:50%; background:currentColor; opacity:.45}
+  .bucket li.none{color:var(--faint); font-size:13px; font-style:italic; padding-left:0}
+  .bucket li.none::before{display:none}
+  .bucket button{font-size:12px; padding:7px 10px; margin-top:auto; align-self:flex-start}
+  .toast{
+    position:fixed; left:50%; bottom:28px; transform:translate(-50%,20px);
+    background:var(--text); color:#12141a; font-size:13px; font-weight:600;
+    padding:9px 16px; border-radius:999px; opacity:0; pointer-events:none;
+    transition:opacity .2s, transform .2s;
+  }
+  .toast.on{opacity:1; transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="dot"></span>
+    <h1>Triage Deck</h1>
+    <p id="tagline">dump it all, then decide one at a time</p>
+  </header>
+
+  <!-- INPUT -->
+  <section class="screen on" id="s-input">
+    <textarea id="dump" placeholder="One thought per line. Don't organise, don't judge &#8212; just empty your head.&#10;&#10;fix the deploy script&#10;reply to Dana about the invoice&#10;look into that caching idea&#10;book dentist"></textarea>
+    <div class="row">
+      <button class="primary" id="start">Deal the deck</button>
+      <span style="color:var(--faint);font-size:13px"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+      <span class="spacer"></span>
+      <button class="ghost" id="sample">Try a sample</button>
+      <button class="ghost" id="resume" hidden>Resume last session</button>
+    </div>
+  </section>
+
+  <!-- DECK -->
+  <section class="screen" id="s-deck">
+    <div class="meta">
+      <span id="count">1 of 1</span>
+      <span class="bar"><i id="fill"></i></span>
+      <button class="ghost" id="undo" disabled>Undo <kbd>Z</kbd></button>
+    </div>
+    <div class="deck-area">
+      <div id="stack"></div>
+      <div id="sheet" hidden>
+        <p class="q">Defer until<span class="what" id="sheet-what"></span></p>
+        <div class="opts" id="sheet-opts"></div>
+        <div class="row">
+          <input type="date" id="sheet-date" aria-label="Defer until a specific date">
+          <button class="ghost" id="sheet-none">Someday <span class="k">0</span></button>
+          <span class="spacer"></span>
+          <button class="ghost" id="sheet-cancel">Cancel <kbd>Esc</kbd></button>
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="act" data-b="drop">&#8592; Drop<span>let it go</span></button>
+      <button class="act" data-b="defer">&#8595; Defer<span>pick a date</span></button>
+      <button class="act" data-b="do">&#8594; Do<span>it's on the list</span></button>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section class="screen" id="s-done">
+    <div class="buckets">
+      <div class="bucket do"><h2>Do <em id="c-do">0</em></h2><ul id="l-do"></ul><button data-copy="do">Copy</button></div>
+      <div class="bucket defer"><h2>Defer <em id="c-defer">0</em></h2><ul id="l-defer"></ul><button data-copy="defer">Copy</button></div>
+      <div class="bucket drop"><h2>Dropped <em id="c-drop">0</em></h2><ul id="l-drop"></ul><button data-copy="drop">Copy</button></div>
+    </div>
+    <div class="row">
+      <button class="primary" data-copy="all">Copy all as Markdown</button>
+      <span class="spacer"></span>
+      <button class="ghost" id="again">Start over</button>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const KEY = 'triage-deck-v1';
+const BUCKETS = ['do','defer','drop'];
+const SAMPLE = [
+  'fix the deploy script before it bites someone',
+  'reply to Dana about the invoice',
+  'look into that caching idea I sketched',
+  'book the dentist, seriously',
+  'read the half-finished article in my tabs',
+  'refactor the settings page',
+  'ask Sam whether the Q3 numbers landed',
+  'cancel the subscription I stopped using',
+  'write up notes from Tuesday call',
+  'learn enough SQL to stop asking for reports'
+].join('\n');
+
+let S = { items:[], idx:0, do:[], defer:[], drop:[], history:[] };
+
+/* ---------- entries & dates ----------
+   Do/Drop entries are plain strings; Defer entries are { text, when } where
+   `when` is a local YYYY-MM-DD string, or null for "someday".
+   The accessors also tolerate plain strings so older saved sessions resume. */
+const entryText = e => typeof e === 'string' ? e : e.text;
+const entryWhen = e => typeof e === 'string' ? null : e.when;
+const FAR = '9999-12-31';   // sorts undated items last
+const sortedDefer = () =>
+  [...S.defer].sort((a,b) => (entryWhen(a) || FAR).localeCompare(entryWhen(b) || FAR));
+
+const pad = n => String(n).padStart(2, '0');
+const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const midnight = d => { d.setHours(0,0,0,0); return d; };
+const fromISO = s => new Date(s + 'T00:00:00');   // parse as local, not UTC
+const fmtShort = d => d.toLocaleDateString(undefined, { weekday:'short', day:'numeric', month:'short' });
+
+function presets(){
+  const today = midnight(new Date());
+  const plus = n => { const d = new Date(today); d.setDate(d.getDate() + n); return d; };
+  const dow = today.getDay();                       // 0 Sun .. 6 Sat
+  const toSat = (6 - dow + 7) % 7 || 7;             // next Saturday, never today
+  const toMon = (1 - dow + 7) % 7 || 7;             // next Monday, never today
+  const toWeekend = dow === 6 ? 1 : toSat;          // on a Saturday, "the weekend" is tomorrow
+  const all = [
+    { label:'Tomorrow',     date: plus(1) },
+    { label:'This weekend', date: plus(toWeekend) },
+    { label:'Next week',    date: plus(toMon) },
+    { label:'Next month',   date: new Date(today.getFullYear(), today.getMonth() + 1, 1) }
+  ];
+  // Near the weekend these collapse onto the same day; show each date once.
+  const seen = new Set();
+  return all.filter(p => {
+    const k = iso(p.date);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+/* ---------- persistence (best-effort) ---------- */
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} };
+const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch(e){ return null; } };
+const wipe = () => { try { localStorage.removeItem(KEY); } catch(e){} };
+
+/* ---------- screens ---------- */
+const TAGLINES = {
+  's-input': 'dump it all, then decide one at a time',
+  's-deck': 'left drop · down defer · right do',
+  's-done': 'head: empty. list: sorted.'
+};
+function show(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id));
+  $('#tagline').textContent = TAGLINES[id];
+}
+
+/* ---------- start ---------- */
+function parse(text){
+  return text.split('\n')
+    .map(l => l.replace(/^\s*(?:[-*•]|\[\s?\]|\d+[.)])\s*/, '').trim())
+    .filter(Boolean);
+}
+function begin(items){
+  S = { items, idx:0, do:[], defer:[], drop:[], history:[] };
+  save();
+  show('s-deck');
+  render();
+}
+
+/* ---------- deck rendering ---------- */
+function render(){
+  const stack = $('#stack');
+  stack.innerHTML = '';
+  const visible = S.items.slice(S.idx, S.idx + 3).reverse(); // last child = top card
+  visible.forEach((text, i) => {
+    const depth = visible.length - 1 - i;            // 0 = top of deck
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.style.transform = 'translateY(' + (depth * 12) + 'px) scale(' + (1 - depth * 0.04) + ')';
+    el.style.opacity = depth === 0 ? 1 : (depth === 1 ? 0.55 : 0.3);
+    el.style.zIndex = 10 - depth;
+    el.innerHTML = '<span class="n">' + (S.idx + depth + 1) + '</span>' +
+      '<span class="stamp drop">DROP</span>' +
+      '<span class="stamp defer">DEFER</span>' +
+      '<span class="stamp do">DO</span><span class="t"></span>';
+    el.querySelector('.t').textContent = text;
+    if (depth === 0) arm(el);
+    stack.appendChild(el);
+  });
+  updateMeta();
+  if (S.idx >= S.items.length) finish();
+}
+function updateMeta(){
+  const total = S.items.length;
+  $('#count').textContent = (S.idx < total ? S.idx + 1 : total) + ' of ' + total;
+  $('#fill').style.width = (total ? S.idx / total * 100 : 0) + '%';
+  $('#undo').disabled = !S.history.length;
+}
+
+/* ---------- choosing ---------- */
+function topCard(){
+  const live = $('#stack').querySelectorAll('.card:not(.fly)');
+  return live[live.length - 1];         // topmost card that isn't already flying off
+}
+function choose(bucket){
+  if (S.idx >= S.items.length || sheetOpen) return;
+  if (bucket === 'defer'){ openSheet(); return; }   // needs a date first
+  commit(bucket, null);
+}
+function commit(bucket, when){
+  if (S.idx >= S.items.length) return;
+  const card = topCard();
+  S[bucket].push(bucket === 'defer' ? { text: S.items[S.idx], when: when || null } : S.items[S.idx]);
+  S.history.push(bucket);
+  S.idx++;
+  save();
+  if (card){
+    const to = bucket === 'do'   ? [520, -40, 18]
+             : bucket === 'drop' ? [-520, -40, -18]
+             :                     [0, 460, 0];
+    card.classList.remove('settle');
+    card.classList.add('fly');
+    card.style.transform = 'translate(' + to[0] + 'px,' + to[1] + 'px) rotate(' + to[2] + 'deg)';
+    card.style.zIndex = 20;
+    updateMeta();
+    setTimeout(render, 230);
+  } else {
+    render();
+  }
+}
+function undo(){
+  if (!S.history.length) return;
+  const b = S.history.pop();
+  S[b].pop();
+  S.idx--;
+  save();
+  if ($('#s-done').classList.contains('on')) show('s-deck');
+  render();
+}
+
+/* ---------- defer sheet ---------- */
+let sheetOpen = false;
+function openSheet(){
+  const card = topCard();
+  if (card){                                   // snap the card back under the sheet
+    card.classList.add('settle');
+    card.style.transform = 'translateY(0) scale(1)';
+    card.querySelectorAll('.stamp').forEach(s => { s.style.opacity = 0; });
+  }
+  $('#sheet-what').textContent = S.items[S.idx];
+  const opts = $('#sheet-opts');
+  opts.innerHTML = '';
+  presets().forEach((p, i) => {
+    const b = document.createElement('button');
+    b.className = 'opt';
+    b.innerHTML = '<span class="k"></span><b></b><em></em>';
+    b.querySelector('.k').textContent = i + 1;
+    b.querySelector('b').textContent = p.label;
+    b.querySelector('em').textContent = fmtShort(p.date);
+    b.onclick = () => confirmDefer(iso(p.date));
+    opts.appendChild(b);
+  });
+  const di = $('#sheet-date');
+  di.value = '';
+  di.min = iso(midnight(new Date()));
+  $('#sheet').hidden = false;
+  sheetOpen = true;
+}
+function closeSheet(){ $('#sheet').hidden = true; sheetOpen = false; }
+function confirmDefer(when){ closeSheet(); commit('defer', when); }
+
+/* ---------- drag to fling ---------- */
+function arm(card){
+  let sx = 0, sy = 0, dragging = false, id = null;
+  const stamps = {
+    do: card.querySelector('.stamp.do'),
+    drop: card.querySelector('.stamp.drop'),
+    defer: card.querySelector('.stamp.defer')
+  };
+  const aimedAt = (dx, dy) =>
+    Math.abs(dx) > Math.abs(dy) * 1.2 ? (dx > 0 ? 'do' : 'drop') : (dy > 0 ? 'defer' : null);
+
+  card.addEventListener('pointerdown', e => {
+    dragging = true; id = e.pointerId; sx = e.clientX; sy = e.clientY;
+    card.setPointerCapture(id);
+    card.classList.remove('settle');
+  });
+  card.addEventListener('pointermove', e => {
+    if (!dragging || e.pointerId !== id) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    card.style.transform = 'translate(' + dx + 'px,' + dy + 'px) rotate(' + (dx / 22) + 'deg)';
+    const b = aimedAt(dx, dy), mag = Math.min(1, Math.hypot(dx, dy) / 110);
+    BUCKETS.forEach(k => { stamps[k].style.opacity = (b === k ? mag : 0); });
+  });
+  const release = e => {
+    if (!dragging || e.pointerId !== id) return;
+    dragging = false;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    const b = aimedAt(dx, dy);
+    if (b && Math.hypot(dx, dy) > 90) { choose(b); return; }
+    BUCKETS.forEach(k => { stamps[k].style.opacity = 0; });
+    card.classList.add('settle');
+    card.style.transform = 'translateY(0) scale(1)';
+  };
+  card.addEventListener('pointerup', release);
+  card.addEventListener('pointercancel', release);
+}
+
+/* ---------- results ---------- */
+function finish(){
+  BUCKETS.forEach(b => {
+    const list = b === 'defer' ? sortedDefer() : S[b];
+    $('#c-' + b).textContent = list.length;
+    const ul = $('#l-' + b);
+    ul.innerHTML = '';
+    if (!list.length){
+      const li = document.createElement('li');
+      li.className = 'none';
+      li.textContent = 'nothing here';
+      ul.appendChild(li);
+    } else {
+      list.forEach(e => {
+        const li = document.createElement('li');
+        li.textContent = entryText(e);
+        if (b === 'defer'){
+          const w = entryWhen(e);
+          const chip = document.createElement('span');
+          chip.className = 'chip' + (w ? '' : ' someday');
+          chip.textContent = w ? fmtShort(fromISO(w)) : 'someday';
+          li.appendChild(chip);
+        }
+        ul.appendChild(li);
+      });
+    }
+  });
+  show('s-done');
+}
+function asText(b){
+  const list = b === 'defer' ? sortedDefer() : S[b];
+  return list.map(e => {
+    const w = entryWhen(e);
+    return '- ' + entryText(e) + (w ? ' — ' + w : '');
+  }).join('\n');
+}
+function asMarkdown(){
+  return ['## Do', asText('do') || '_nothing_', '',
+          '## Defer', asText('defer') || '_nothing_', '',
+          '## Dropped', asText('drop') || '_nothing_'].join('\n');
+}
+async function copy(text){
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch(e){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch(_){}
+    ta.remove();
+  }
+  toast('Copied');
+}
+let tid;
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(tid);
+  tid = setTimeout(() => t.classList.remove('on'), 1400);
+}
+
+/* ---------- wiring ---------- */
+$('#start').onclick = () => {
+  const items = parse($('#dump').value);
+  if (!items.length){ toast('Write at least one line first'); $('#dump').focus(); return; }
+  begin(items);
+};
+$('#sample').onclick = () => { $('#dump').value = SAMPLE; $('#dump').focus(); };
+$('#again').onclick = () => { wipe(); $('#dump').value = ''; show('s-input'); $('#dump').focus(); };
+$('#undo').onclick = undo;
+$('#sheet-cancel').onclick = closeSheet;
+$('#sheet-none').onclick = () => confirmDefer(null);
+$('#sheet-date').onchange = e => { if (e.target.value) confirmDefer(e.target.value); };
+document.querySelectorAll('.act').forEach(b => { b.onclick = () => choose(b.dataset.b); });
+document.querySelectorAll('[data-copy]').forEach(b => {
+  b.onclick = () => copy(b.dataset.copy === 'all' ? asMarkdown() : asText(b.dataset.copy));
+});
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'TEXTAREA'){
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('#start').click();
+    return;
+  }
+  if (!$('#s-deck').classList.contains('on')) return;
+  if (sheetOpen){
+    if (e.target.id === 'sheet-date'){          // let the date field keep its own keys
+      if (e.key === 'Enter' && e.target.value) confirmDefer(e.target.value);
+      else if (e.key === 'Escape') closeSheet();
+      return;
+    }
+    e.preventDefault();
+    if (e.key === 'Escape') closeSheet();
+    else if (e.key >= '1' && e.key <= '4'){
+      const p = presets()[Number(e.key) - 1];
+      if (p) confirmDefer(iso(p.date));
+    }
+    else if (e.key === '0') confirmDefer(null);
+    return;
+  }
+  const map = { ArrowLeft:'drop', ArrowDown:'defer', ArrowRight:'do' };
+  if (map[e.key]){ e.preventDefault(); choose(map[e.key]); }
+  else if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace'){ e.preventDefault(); undo(); }
+});
+
+/* resume an interrupted session */
+const prev = load();
+if (prev && prev.items && prev.items.length && prev.idx < prev.items.length){
+  const btn = $('#resume');
+  btn.hidden = false;
+  btn.textContent = 'Resume last session (' + (prev.items.length - prev.idx) + ' left)';
+  btn.onclick = () => { S = prev; show('s-deck'); render(); };
+}
+$('#dump').focus();
+</script>
+</body>
+</html>
