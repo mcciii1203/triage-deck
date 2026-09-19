@@ -7,6 +7,8 @@ nothing you type leaves your browser.
 
 Or clone it and open `index.html` directly: no build, no server, no network.
 
+![The deck mid-triage: a single card reading "book the dentist, seriously", with Drop, Defer and Do beneath it](docs/deck.png)
+
 ## How it works
 
 1. **Dump** - paste or type one thought per line. Don't organise, don't judge.
@@ -25,6 +27,8 @@ Or clone it and open `index.html` directly: no build, no server, no network.
    You can also drag a card and fling it in the same direction, or click the buttons.
 
 4. **Copy out** - three clean buckets, copyable individually or all at once as Markdown.
+
+![The results screen: Do, Defer and Dropped columns, with dates shown beside each deferred item](docs/results.png)
 
 ## Fixing a badly worded card
 
