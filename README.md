@@ -2,7 +2,10 @@
 
 A single-file tool for emptying your head onto a list, then deciding one thing at a time.
 
-Open `index.html` in any browser. No install, no build, no server, no network.
+**[Try it here](https://mcciii1203.github.io/triage-deck/)** - nothing to install, and
+nothing you type leaves your browser.
+
+Or clone it and open `index.html` directly: no build, no server, no network.
 
 ## How it works
 
