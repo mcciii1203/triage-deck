@@ -7,7 +7,7 @@ nothing you type leaves your browser.
 
 Or clone it and open `index.html` directly: no build, no server, no network.
 
-![The deck mid-triage: a single card reading "book the dentist, seriously", with Drop, Defer and Do beneath it](docs/deck.png)
+![The deck mid-triage in dark theme: one card reading "book the dentist, seriously" set in large type, with Drop, Defer and Do beneath it](docs/deck.png)
 
 ## How it works
 
@@ -28,7 +28,7 @@ Or clone it and open `index.html` directly: no build, no server, no network.
 
 4. **Copy out** - three clean buckets, copyable individually or all at once as Markdown.
 
-![The results screen: Do, Defer and Dropped columns, with dates shown beside each deferred item](docs/results.png)
+![The results screen in light theme: Do, Defer and Dropped columns, with dates shown beside each deferred item](docs/results.png)
 
 ## Fixing a badly worded card
 

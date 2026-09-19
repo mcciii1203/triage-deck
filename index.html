@@ -31,7 +31,8 @@
     --sheet-bg:rgba(14,16,20,.86); --sheet-edge:rgba(251,191,36,.28);
     --chip-bg:rgba(251,191,36,.13); --chip-none:rgba(255,255,255,.06);
     --do:#4ade80; --defer:#fbbf24; --drop:#f87171;
-    --shadow:0 18px 40px -12px rgba(0,0,0,.65);
+    --ring:#9ec1ff; --card-top:rgba(255,255,255,.07);
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 20px -10px rgba(0,0,0,.55), 0 34px 60px -24px rgba(0,0,0,.75);
   }
   /* The accents are darkened here: the neon greens and ambers that carry a dark
      card are unreadable as text on white. */
@@ -46,10 +47,47 @@
     --sheet-bg:rgba(250,249,247,.93); --sheet-edge:rgba(180,83,9,.3);
     --chip-bg:rgba(180,83,9,.12); --chip-none:rgba(24,26,32,.07);
     --do:#15803d; --defer:#b45309; --drop:#b91c1c;
-    --shadow:0 16px 34px -14px rgba(20,22,30,.26);
+    --ring:#1d4ed8; --card-top:rgba(255,255,255,.9);
+    --shadow:0 1px 2px rgba(20,22,30,.06), 0 10px 20px -12px rgba(20,22,30,.16), 0 34px 58px -26px rgba(20,22,30,.24);
   }
+  :root{
+    /* Measured from awwwards-nominated work: display type runs sub-1 line-height
+       with negative tracking, against tiny wide-tracked mono labels. */
+    --display:clamp(21px,3.9vw,38px);
+    --micro:11px;
+    --mono:ui-monospace,"Cascadia Code",Consolas,"SF Mono",monospace;
+    --ease-out:cubic-bezier(.16,1,.3,1);
+    --ease-spring:cubic-bezier(.34,1.4,.64,1);
+    --grain:.05;
+  }
+  :root[data-theme="light"]{--grain:.035}
+
   *{box-sizing:border-box}
   html,body{height:100%}
+
+  /* Film grain: flattens the flat, at a strength you notice only if it's removed. */
+  body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:90;
+    opacity:var(--grain);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* A visible ring for keyboard users only: the two outline:none rules below are
+     deliberate (no ring on mouse click) but must never leave keyboard focus invisible. */
+  :where(button,input,textarea,[contenteditable="true"],[tabindex]):focus-visible{
+    outline:2px solid var(--ring); outline-offset:2px;
+  }
+  .sr-only{
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+  }
+  /* Cards fly 500px across the screen; honour a request for less of that. */
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{
+      animation-duration:.01ms !important; animation-iteration-count:1 !important;
+      transition-duration:.01ms !important;
+    }
+  }
   body{
     margin:0; background:var(--bg); color:var(--text);
     font:16px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -60,9 +98,12 @@
   #app{width:100%; max-width:720px; display:flex; flex-direction:column; gap:28px}
 
   header{display:flex; align-items:baseline; gap:12px}
-  h1{font-size:19px; margin:0; letter-spacing:-.01em; font-weight:650}
+  h1{font-size:19px; margin:0; letter-spacing:-.035em; font-weight:660}
   header .dot{width:7px; height:7px; border-radius:50%; background:var(--do); box-shadow:0 0 12px var(--do)}
-  header p{margin:0 0 0 auto; color:var(--faint); font-size:13px}
+  header p{
+    margin:0 0 0 auto; color:var(--faint);
+    font:500 var(--micro)/1.4 var(--mono); letter-spacing:.12em; text-transform:uppercase;
+  }
 
   .icon-btn{padding:8px; line-height:0; color:var(--muted); align-self:center}
   .icon-btn:hover{background:var(--surface); color:var(--text)}
@@ -96,7 +137,7 @@
     font:inherit; font-size:14px; font-weight:550; color:var(--text);
     background:var(--surface); border:1px solid var(--line);
     padding:10px 16px; border-radius:10px; cursor:pointer;
-    transition:background .15s, border-color .15s, transform .08s;
+    transition:background .18s var(--ease-out), border-color .18s var(--ease-out), transform .12s var(--ease-out);
   }
   button:hover{background:var(--btn-hover); border-color:var(--line-hi)}
   button:active{transform:translateY(1px)}
@@ -112,35 +153,47 @@
   }
 
   /* ---------- deck ---------- */
-  .meta{display:flex; align-items:center; gap:14px; color:var(--muted); font-size:13px}
+  .meta{
+    display:flex; align-items:center; gap:14px; color:var(--muted);
+    font:500 var(--micro)/1 var(--mono); letter-spacing:.12em; text-transform:uppercase;
+  }
+  #count{font-variant-numeric:tabular-nums; white-space:nowrap}
   .bar{flex:1; height:3px; background:var(--track); border-radius:2px; overflow:hidden}
   .bar i{display:block; height:100%; width:0; background:var(--text); transition:width .28s ease}
 
-  .deck-area{position:relative; height:300px}
+  .deck-area{position:relative; height:clamp(232px,32vh,290px)}
   #stack{position:absolute; inset:0; touch-action:none; user-select:none}
   .card{
-    position:absolute; inset:0; border-radius:18px; padding:36px 40px;
+    position:absolute; inset:0; border-radius:20px; padding:26px 26px 26px 24px;
     background:linear-gradient(160deg,var(--card-a),var(--card-b));
-    border:1px solid var(--line); box-shadow:var(--shadow);
-    display:grid; place-items:center; text-align:center;
-    font-size:clamp(19px,3vw,26px); line-height:1.4; letter-spacing:-.01em;
+    border:1px solid var(--line); box-shadow:inset 0 1px 0 var(--card-top), var(--shadow);
+    display:grid; place-items:end start; text-align:left;
+    font-size:var(--display); line-height:1.06; letter-spacing:-.034em; font-weight:560;
     overflow:hidden; word-break:break-word;
     transform-origin:50% 120%;
   }
   .card .t{outline:none}
+  /* Only the top card (last in DOM) shows content; the ones beneath are bare
+     shapes, otherwise their bottom-anchored text bleeds past the front card. */
+  #stack .card:not(:last-child) > *{visibility:hidden}
   .card.editing{border-color:var(--card-edge)}
   .card.editing .t{
     user-select:text; cursor:text; padding-bottom:5px;
     border-bottom:1px dashed var(--card-rule);
   }
   .card .edit-hint{
-    position:absolute; left:0; right:0; bottom:14px; text-align:center;
-    font-size:11px; color:var(--faint); opacity:0; transition:opacity .15s; pointer-events:none;
+    position:absolute; right:24px; bottom:22px; text-align:right;
+    font:500 10px/1 var(--mono); letter-spacing:.1em; text-transform:uppercase;
+    color:var(--faint); opacity:0; transition:opacity .15s; pointer-events:none;
   }
   .card.editing .edit-hint{opacity:1}
-  .card.settle{transition:transform .32s cubic-bezier(.2,.9,.3,1), opacity .32s}
-  .card.fly{transition:transform .26s ease-in, opacity .26s ease-in; opacity:0}
-  .card .n{position:absolute; top:14px; left:18px; font-size:12px; color:var(--faint); letter-spacing:.08em}
+  .card.settle{transition:transform .5s var(--ease-spring), opacity .3s}
+  .card.fly{transition:transform .34s var(--ease-out), opacity .3s ease-in; opacity:0}
+  .card .n{
+    position:absolute; top:20px; left:24px; color:var(--faint);
+    font:500 var(--micro)/1 var(--mono); letter-spacing:.14em; font-variant-numeric:tabular-nums;
+  }
+  .card .n::before{content:"NO. "}
   .stamp{
     position:absolute; top:18px; right:18px; font-size:13px; font-weight:700;
     letter-spacing:.16em; padding:6px 12px; border-radius:8px; border:2px solid currentColor;
@@ -151,8 +204,10 @@
   .stamp.drop{right:auto; left:18px}
 
   .actions{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
-  .act{display:flex; flex-direction:column; align-items:center; gap:5px; padding:14px 8px; line-height:1.2}
-  .act span{font-size:12px; color:var(--faint)}
+  .act{display:flex; flex-direction:column; align-items:center; gap:7px; padding:15px 8px; line-height:1.2; letter-spacing:-.01em}
+  .act span{
+    font:500 10px/1.3 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--faint);
+  }
   .act[data-b="do"]:hover{border-color:var(--do); color:var(--do)}
   .act[data-b="defer"]:hover{border-color:var(--defer); color:var(--defer)}
   .act[data-b="drop"]:hover{border-color:var(--drop); color:var(--drop)}
@@ -163,10 +218,10 @@
     background:var(--sheet-bg); backdrop-filter:blur(7px);
     border:1px solid var(--sheet-edge);
     display:flex; flex-direction:column; justify-content:center; gap:14px;
-    padding:24px 26px; animation:rise .16s ease-out;
+    padding:24px 26px; animation:rise .3s var(--ease-out);
   }
   #sheet[hidden]{display:none}
-  @keyframes rise{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+  @keyframes rise{from{opacity:0; transform:translateY(10px) scale(.985)} to{opacity:1; transform:none}}
   #sheet .q{margin:0; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--defer)}
   #sheet .what{
     display:block; margin-top:7px; font-size:15px; color:var(--muted);
@@ -203,9 +258,19 @@
   /* ---------- results ---------- */
   .buckets{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
   @media(max-width:620px){ .buckets,.actions{grid-template-columns:1fr} }
-  .bucket{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:10px}
-  .bucket h2{margin:0; font-size:13px; letter-spacing:.1em; text-transform:uppercase; display:flex; align-items:center; gap:8px}
-  .bucket h2 em{margin-left:auto; font-style:normal; color:var(--faint); font-size:12px}
+  @media(max-width:600px){ header p{display:none} }
+  .bucket{
+    background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:18px;
+    display:flex; flex-direction:column; gap:11px;
+    animation:rise .45s var(--ease-out) backwards;
+  }
+  .bucket:nth-child(2){animation-delay:.07s}
+  .bucket:nth-child(3){animation-delay:.14s}
+  .bucket h2{
+    margin:0; font:600 var(--micro)/1 var(--mono); letter-spacing:.16em; text-transform:uppercase;
+    display:flex; align-items:center; gap:8px;
+  }
+  .bucket h2 em{margin-left:auto; font-style:normal; color:var(--faint); font-variant-numeric:tabular-nums}
   .bucket.do h2{color:var(--do)} .bucket.defer h2{color:var(--defer)} .bucket.drop h2{color:var(--drop)}
   .bucket ul{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; font-size:14px; color:var(--text-soft)}
   .bucket li{padding-left:14px; position:relative; line-height:1.45}
@@ -250,14 +315,14 @@
   <section class="screen" id="s-deck">
     <div class="meta">
       <span id="count">1 of 1</span>
-      <span class="bar"><i id="fill"></i></span>
+      <span class="bar" aria-hidden="true"><i id="fill"></i></span>
       <button class="ghost" id="edit">Edit <kbd>E</kbd></button>
       <button class="ghost" id="undo" disabled>Undo <kbd>Z</kbd></button>
     </div>
     <div class="deck-area">
       <div id="stack"></div>
-      <div id="sheet" hidden>
-        <p class="q">Defer until<span class="what" id="sheet-what"></span></p>
+      <div id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+        <p class="q" id="sheet-title">Defer until<span class="what" id="sheet-what"></span></p>
         <div class="opts" id="sheet-opts"></div>
         <div class="row">
           <input type="date" id="sheet-date" aria-label="Defer until a specific date">
@@ -288,7 +353,8 @@
     </div>
   </section>
 </div>
-<div class="toast" id="toast"></div>
+<p id="announce" class="sr-only" role="status" aria-atomic="true"></p>
+<div class="toast" id="toast" role="status"></div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -390,15 +456,16 @@ function render(){
     el.style.opacity = depth === 0 ? 1 : (depth === 1 ? 0.55 : 0.3);
     el.style.zIndex = 10 - depth;
     el.innerHTML = '<span class="n">' + (S.idx + depth + 1) + '</span>' +
-      '<span class="stamp drop">DROP</span>' +
-      '<span class="stamp defer">DEFER</span>' +
-      '<span class="stamp do">DO</span><span class="t"></span>' +
-      '<span class="edit-hint">Enter saves · Esc cancels</span>';
+      '<span class="stamp drop" aria-hidden="true">DROP</span>' +
+      '<span class="stamp defer" aria-hidden="true">DEFER</span>' +
+      '<span class="stamp do" aria-hidden="true">DO</span><span class="t"></span>' +
+      '<span class="edit-hint" aria-hidden="true">Enter saves · Esc cancels</span>';
     el.querySelector('.t').textContent = text;
     if (depth === 0) arm(el);
     stack.appendChild(el);
   });
   updateMeta();
+  if (S.idx < S.items.length) announce('Card ' + (S.idx + 1) + ' of ' + S.items.length + ': ' + S.items[S.idx]);
   if (S.idx >= S.items.length) finish();
 }
 function updateMeta(){
@@ -528,8 +595,26 @@ function openSheet(){
   di.min = iso(midnight(new Date()));
   $('#sheet').hidden = false;
   sheetOpen = true;
+  sheetReturnFocus = document.activeElement;
+  const firstOpt = opts.querySelector('.opt');
+  if (firstOpt) firstOpt.focus();
 }
-function closeSheet(){ $('#sheet').hidden = true; sheetOpen = false; }
+let sheetReturnFocus = null;
+function closeSheet(){
+  $('#sheet').hidden = true;
+  sheetOpen = false;
+  const back = sheetReturnFocus;
+  sheetReturnFocus = null;
+  if (back && back.focus && document.contains(back)) back.focus();
+}
+// Keep Tab inside the dialog while it is open.
+function trapTab(e){
+  const f = $('#sheet').querySelectorAll('button, input');
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+}
 function confirmDefer(when){ closeSheet(); commit('defer', when); }
 
 /* ---------- drag to fling ---------- */
@@ -599,6 +684,8 @@ function finish(){
     }
   });
   show('s-done');
+  announce('All ' + S.items.length + ' sorted: ' + S.do.length + ' to do, ' +
+           S.defer.length + ' deferred, ' + S.drop.length + ' dropped.');
 }
 function asText(b){
   const list = b === 'defer' ? sortedDefer() : S[b];
@@ -633,6 +720,11 @@ function toast(msg){
   clearTimeout(tid);
   tid = setTimeout(() => t.classList.remove('on'), 1400);
 }
+
+/* ---------- screen-reader announcements ---------- */
+/* One polite region for the whole app. The deck changes under the user's hands
+   with no page navigation, so without this a keyboard user hears nothing. */
+function announce(msg){ const el = $('#announce'); if (el) el.textContent = msg; }
 
 /* ---------- theme ---------- */
 const THEME_KEY = 'triage-deck-theme';
@@ -693,19 +785,20 @@ document.addEventListener('keydown', e => {
     editSession.stop(true);
   }
   if (sheetOpen){
+    if (e.key === 'Tab'){ trapTab(e); return; }
     if (e.target.id === 'sheet-date'){          // let the date field keep its own keys
       if (e.key === 'Enter' && e.target.value) confirmDefer(e.target.value);
       else if (e.key === 'Escape') closeSheet();
       return;
     }
-    e.preventDefault();
-    if (e.key === 'Escape') closeSheet();
-    else if (e.key >= '1' && e.key <= '4'){
+    if (e.key === 'Escape'){ e.preventDefault(); closeSheet(); return; }
+    if (e.key >= '1' && e.key <= '4'){
       const p = presets()[Number(e.key) - 1];
-      if (p) confirmDefer(iso(p.date));
+      if (p){ e.preventDefault(); confirmDefer(iso(p.date)); }
+      return;
     }
-    else if (e.key === '0') confirmDefer(null);
-    return;
+    if (e.key === '0'){ e.preventDefault(); confirmDefer(null); return; }
+    return;   // everything else (Tab, Enter on a focused button) keeps its default
   }
   const map = { ArrowLeft:'drop', ArrowDown:'defer', ArrowRight:'do' };
   if (map[e.key]){ e.preventDefault(); choose(map[e.key]); }
